@@ -439,6 +439,7 @@ class Sheetinator_Form_Discovery {
      */
     public function get_option_label( $field_id, $value, $form_id ) {
         static $field_cache = array();
+        static $debug_logged = false;
 
         // Build cache key
         $cache_key = $form_id . '_' . $field_id;
@@ -452,6 +453,10 @@ class Sheetinator_Form_Discovery {
         $field = $field_cache[ $cache_key ];
 
         if ( ! $field ) {
+            if ( ! $debug_logged ) {
+                error_log( sprintf( '[Sheetinator] Field not found: %s in form %d', $field_id, $form_id ) );
+                $debug_logged = true;
+            }
             return $value; // Field not found, return original value
         }
 
@@ -467,7 +472,30 @@ class Sheetinator_Form_Discovery {
         $options = $field['options'] ?? array();
 
         if ( empty( $options ) ) {
+            if ( ! $debug_logged ) {
+                error_log( sprintf( '[Sheetinator] No options for field %s (type: %s) in form %d', $field_id, $field_type, $form_id ) );
+                $debug_logged = true;
+            }
             return $value; // No options defined
+        }
+
+        // Debug: Log first option-based field we encounter
+        if ( ! $debug_logged ) {
+            error_log( sprintf(
+                '[Sheetinator] Processing %s field "%s" with value "%s". Options count: %d',
+                $field_type,
+                $field_id,
+                $value,
+                count( $options )
+            ) );
+            if ( ! empty( $options ) ) {
+                $first_option = is_object( $options[0] ) ? get_object_vars( $options[0] ) : $options[0];
+                error_log( sprintf(
+                    '[Sheetinator] First option structure: %s',
+                    print_r( $first_option, true )
+                ) );
+            }
+            $debug_logged = true;
         }
 
         // Search for the value in options
@@ -486,7 +514,14 @@ class Sheetinator_Form_Discovery {
             }
         }
 
-        // Value not found in options, return original value
+        // Value not found in options, return original value (might already be a label)
+        if ( ! $debug_logged ) {
+            error_log( sprintf(
+                '[Sheetinator] Value "%s" not found in options for field %s. Returning as-is (might already be a label).',
+                $value,
+                $field_id
+            ) );
+        }
         return $value;
     }
 
