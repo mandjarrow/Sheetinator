@@ -108,7 +108,7 @@ class Sheetinator_Sync_Handler {
 
         // Add field values in order
         foreach ( $field_ids as $field_id ) {
-            $row[] = $this->get_field_value( $field_id, $data_lookup );
+            $row[] = $this->get_field_value( $field_id, $data_lookup, $form_id );
         }
 
         return $row;
@@ -138,14 +138,23 @@ class Sheetinator_Sync_Handler {
     /**
      * Get field value from lookup, handling compound fields
      *
+     * Automatically converts radio/select/checkbox values to labels
+     * using field definitions.
+     *
      * @param string $field_id    Field ID
      * @param array  $data_lookup Data lookup array
+     * @param int    $form_id     Form ID for option label lookup
      * @return string Field value
      */
-    private function get_field_value( $field_id, $data_lookup ) {
+    private function get_field_value( $field_id, $data_lookup, $form_id ) {
         // Direct match
         if ( isset( $data_lookup[ $field_id ] ) ) {
-            return $this->format_value( $data_lookup[ $field_id ] );
+            $value = $data_lookup[ $field_id ];
+
+            // Convert value to label for radio/select/checkbox fields
+            $value = $this->convert_value_to_label( $field_id, $value, $form_id );
+
+            return $this->format_value( $value );
         }
 
         // Check for compound field parts (e.g., name-1-first-name)
@@ -170,6 +179,36 @@ class Sheetinator_Sync_Handler {
         }
 
         return '';
+    }
+
+    /**
+     * Convert field value to label for option-based fields
+     *
+     * For radio, select, and checkbox fields, converts numeric or short values
+     * to their human-readable labels.
+     *
+     * @param string $field_id Field ID
+     * @param mixed  $value    Field value
+     * @param int    $form_id  Form ID
+     * @return mixed Converted value or original if not applicable
+     */
+    private function convert_value_to_label( $field_id, $value, $form_id ) {
+        // Skip conversion for empty values
+        if ( $value === '' || $value === null ) {
+            return $value;
+        }
+
+        // For arrays (checkboxes with multiple values), convert each item
+        if ( is_array( $value ) ) {
+            $converted = array();
+            foreach ( $value as $item ) {
+                $converted[] = $this->discovery->get_option_label( $field_id, $item, $form_id );
+            }
+            return $converted;
+        }
+
+        // For single values, convert using field definitions
+        return $this->discovery->get_option_label( $field_id, $value, $form_id );
     }
 
     /**
@@ -574,7 +613,7 @@ class Sheetinator_Sync_Handler {
 
         // Add field values in order
         foreach ( $field_ids as $field_id ) {
-            $row[] = $this->get_field_value( $field_id, $data_lookup );
+            $row[] = $this->get_field_value( $field_id, $data_lookup, $form_id );
         }
 
         return $row;

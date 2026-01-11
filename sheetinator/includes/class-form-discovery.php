@@ -392,6 +392,105 @@ class Sheetinator_Form_Discovery {
     }
 
     /**
+     * Get field definitions with options for value-to-label mapping
+     *
+     * Returns field objects/arrays that include option definitions for
+     * radio, checkbox, and select fields.
+     *
+     * @param int $form_id Form ID
+     * @return array Array of field_id => field_object pairs
+     */
+    public function get_field_definitions( $form_id ) {
+        if ( ! class_exists( 'Forminator_API' ) ) {
+            return array();
+        }
+
+        $form_fields = Forminator_API::get_form_fields( $form_id );
+
+        if ( is_wp_error( $form_fields ) || empty( $form_fields ) ) {
+            return array();
+        }
+
+        $definitions = array();
+
+        foreach ( $form_fields as $field ) {
+            // Convert object to array for easier access
+            $field_array = is_object( $field ) ? get_object_vars( $field ) : $field;
+            $element_id  = $field_array['slug'] ?? $field_array['element_id'] ?? '';
+
+            if ( ! empty( $element_id ) ) {
+                $definitions[ $element_id ] = $field_array;
+            }
+        }
+
+        return $definitions;
+    }
+
+    /**
+     * Get label for a field option value
+     *
+     * For radio, checkbox, and select fields, converts the submitted value
+     * to its corresponding label.
+     *
+     * @param string $field_id Field ID
+     * @param mixed  $value    Submitted value
+     * @param int    $form_id  Form ID
+     * @return mixed Original value if not found, or the label if found
+     */
+    public function get_option_label( $field_id, $value, $form_id ) {
+        static $field_cache = array();
+
+        // Build cache key
+        $cache_key = $form_id . '_' . $field_id;
+
+        // Get field definition (cached)
+        if ( ! isset( $field_cache[ $cache_key ] ) ) {
+            $definitions = $this->get_field_definitions( $form_id );
+            $field_cache[ $cache_key ] = $definitions[ $field_id ] ?? null;
+        }
+
+        $field = $field_cache[ $cache_key ];
+
+        if ( ! $field ) {
+            return $value; // Field not found, return original value
+        }
+
+        // Check if this field type has options
+        $field_type = $field['type'] ?? '';
+        $has_options = in_array( $field_type, array( 'radio', 'select', 'checkbox' ), true );
+
+        if ( ! $has_options ) {
+            return $value; // Not an option field, return original value
+        }
+
+        // Get options array
+        $options = $field['options'] ?? array();
+
+        if ( empty( $options ) ) {
+            return $value; // No options defined
+        }
+
+        // Search for the value in options
+        foreach ( $options as $option ) {
+            // Handle both array and object format
+            if ( is_object( $option ) ) {
+                $option = get_object_vars( $option );
+            }
+
+            $option_value = $option['value'] ?? '';
+            $option_label = $option['label'] ?? '';
+
+            // Match the value and return the label
+            if ( (string) $option_value === (string) $value ) {
+                return $option_label;
+            }
+        }
+
+        // Value not found in options, return original value
+        return $value;
+    }
+
+    /**
      * Check if Forminator is active and has forms
      *
      * @return bool
